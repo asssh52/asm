@@ -80,7 +80,7 @@ fillBuff:
 ;----------------------
     jmp emptyBuffEnd
     emptyBuff:
-                                ;!!!!!!!!! rdx > buffsize
+
     push rcx
     call printBuff
     pop rcx
@@ -94,15 +94,15 @@ fillBuff:
 ;----------------------
     align 8
     jumpTable:
-        dq printBin    ; 0
-        dq printChar   ; 1
-        dq printDec    ; 2
-        times 3d dq 0h ; 'h' - 'b' - 1
-        dq printHex    ; 6
+        dq printBin    ; 0      'b'
+        dq printChar   ; 1      'c'
+        dq printDec    ; 2      'd'
+        times 3d dq 0h ; 'h' - 'd' - 1
+        dq printHex    ; 6      'h'
         times 6d dq 0h ; 'o' - 'h' - 1
-        dq printOct    ; 13
+        dq printOct    ; 13     'o'
         times 3d dq 0h ; 's' - 'o' - 1
-        dq printStr    ; 17
+        dq printStr    ; 17     's'
 
 
 
@@ -122,6 +122,9 @@ fillBuff:
         jmp processCharLoop
 
     printDec:
+        mov rsi, -213d
+        mov r11, Buffer
+        call printNumDec
         jmp processCharLoop
 
     printHex:
@@ -160,6 +163,69 @@ fillBuff:
     ret
 
 ;================================================================================
+
+
+
+;================================================================================
+;Comm: prints num to buffer, in decimal.
+;In: R11 + RDX - place in buffer,  RSI - number
+;Destr: RAX, RBX, RDX, RDI, R12, R10
+;================================================================================
+printNumDec:
+    push rbx
+
+    mov r12, rsi
+    and r12, 0xf0000000
+    cmp r12, 0xf0000000
+    jne skipMinus
+    xor rsi, -1d
+    inc rsi
+
+    mov r10, '-'
+    call putChar
+
+    skipMinus:
+
+    xor r12, r12
+    mov rbx, rdx
+    xor rdx, rdx
+    xor rax, rax
+    mov rdi, 10d
+
+    loopNumDec:
+        xor rdx, rdx
+        mov rax, rsi
+        div rdi
+        mov rsi, rax
+
+        mov r10, rdx
+        add r10, alphabet
+
+        xor rax, rax
+        mov al, [r10]
+        mov r10b, al
+
+        mov [digitBuff + r12], r10b
+        inc r12
+
+        cmp rsi, 0h
+        jne loopNumDec
+
+
+    mov rdx, rbx
+    loopGetDigNumDec:
+        mov r10b, [digitBuff + r12 - 1]
+        call putChar
+
+        dec r12
+        cmp r12, 0h
+        jne loopGetDigNumDec
+
+    pop rbx
+    ret
+
+;================================================================================
+
 
 
 ;================================================================================
@@ -205,7 +271,7 @@ getStrLen:
 ;================================================================================
 ;Comm: prints num to buffer, in different notations.
 ;In: R11 + RDX - place in buffer,  RSI - number, RDI - notation (2, 8, 10, 16)
-;Destr: RAX, R8, R12
+;Destr: RAX, RDX, R8, R12
 ;================================================================================
 printNum:
 
@@ -243,7 +309,7 @@ printNum:
         mov r10, rax
         add r10, alphabet
 
-        xor rax, rax
+        xor rax, rax            ;printing char
         mov al, [r10]
         mov r10b, al
 
@@ -258,13 +324,13 @@ printNum:
         cmp rsi, 0h
         jne loopPrnt
 
-    loopGetDig:
+    loopGetDigNum:
         mov r10b, [digitBuff + r12 - 1]
         call putChar
 
         dec r12
         cmp r12, 0h
-        jne loopGetDig
+        jne loopGetDigNum
 
 
     pNumEnd:
@@ -279,7 +345,7 @@ printNum:
 ;Comm: prints one char to buff, clears and prints the buffer if it is full.
 ;Comm: saves RCX, might destr other regs
 ;In: R11 - buff, RDX - current pos in buff, R10 - char to print.
-;Destr: ?
+;Destr: RAX, RDI, RSI, RDX
 ;================================================================================
 putChar:
     cmp rdx, BuffSize
@@ -356,6 +422,9 @@ section     .data
 
 Buffer:     times BuffSize db "0"
 digitBuff:  times 64d      db "0"
+additionalBuff:            db "0"
 String:     db "wiwiwi", 0h
-formatLine: db "s:%s, c:%c, b:%b, o:%o, x:%h", 0ah, 0h
+formatLine1: db "s:%s, c:%c, b:%b, o:%o, x:%h, d:%d", 0ah, 0
+formatLine: db "%d", 0ah, 0
 alphabet:   db "0123456789abcdef"
+
