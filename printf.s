@@ -94,9 +94,15 @@ fillBuff:
 ;----------------------
     align 8
     jumpTable:
-        dq printBin
-
-
+        dq printBin    ; 0
+        dq printChar   ; 1
+        dq printDec    ; 2
+        times 3d dq 0h ; 'h' - 'b' - 1
+        dq printHex    ; 6
+        times 6d dq 0h ; 'o' - 'h' - 1
+        dq printOct    ; 13
+        times 3d dq 0h ; 's' - 'o' - 1
+        dq printStr    ; 17
 
 
 
@@ -104,10 +110,51 @@ fillBuff:
 
     printBin:
         mov r11, Buffer
-        mov rsi, 0ffffh
+        mov rsi, 0100h
         mov rdi, 2h
         call printNum
         jmp processCharLoop
+
+    printChar:
+        mov r10, 'j'
+        mov r11, Buffer
+        call putChar
+        jmp processCharLoop
+
+    printDec:
+        jmp processCharLoop
+
+    printHex:
+        mov r11, Buffer
+        mov rsi, 0edah
+        mov rdi, 10h
+        call printNum
+        jmp processCharLoop
+
+    printOct:
+        mov r11, Buffer
+        mov rsi, 0edah
+        mov rdi, 8h
+        call printNum
+        jmp processCharLoop
+
+    printStr:
+        push rax
+        push rcx
+        push rdi
+
+        call printBuff
+
+        mov rsi, String
+        call printString
+        xor rdx, rdx
+
+        pop rdi
+        pop rcx
+        pop rax
+
+        jmp processCharLoop
+
     endLoop:
 ;-=-=-=-=-=-=-=-=-=-=
     ret
@@ -116,9 +163,49 @@ fillBuff:
 
 
 ;================================================================================
+;Comm: prints '0' terminated string to STDOUT.
+;In: RSI - ptr to string.
+;Destr: RAX, RDI, RDX
+;================================================================================
+printString:
+    call getStrLen
+
+    mov rax, 0x01
+    mov rdi, 1
+    syscall
+
+    ret
+
+;================================================================================
+
+
+
+;================================================================================
+;Comm: gets length of '0' terminated string.
+;In: RSI - ptr to string.
+;Out: RDX - length
+;Destr: RDX
+;================================================================================
+getStrLen:
+    xor rdx, rdx
+
+    loopStrLen:
+        cmp byte [rsi + rdx], 0h
+        je loopStrLenEnd
+        inc rdx
+        jmp loopStrLen
+
+    loopStrLenEnd:
+    ret
+
+;================================================================================
+
+
+
+;================================================================================
 ;Comm: prints num to buffer, in different notations.
 ;In: R11 + RDX - place in buffer,  RSI - number, RDI - notation (2, 8, 10, 16)
-;Destr: RAX, R8
+;Destr: RAX, R8, R12
 ;================================================================================
 printNum:
 
@@ -147,6 +234,7 @@ printNum:
 
     mainPrnt:
         sub rdi, 1h
+        xor r12, r12
 
     loopPrnt:
         mov rax, rsi
@@ -159,7 +247,8 @@ printNum:
         mov al, [r10]
         mov r10b, al
 
-        call putChar
+        mov [digitBuff + r12], r10b
+        inc r12
 
         push rcx
         mov rcx, r8
@@ -168,6 +257,15 @@ printNum:
 
         cmp rsi, 0h
         jne loopPrnt
+
+    loopGetDig:
+        mov r10b, [digitBuff + r12 - 1]
+        call putChar
+
+        dec r12
+        cmp r12, 0h
+        jne loopGetDig
+
 
     pNumEnd:
     ret
@@ -257,5 +355,7 @@ exitProg:
 section     .data
 
 Buffer:     times BuffSize db "0"
-formatLine: db "%b meow %b", 0ah, 0h
+digitBuff:  times 64d      db "0"
+String:     db "wiwiwi", 0h
+formatLine: db "s:%s, c:%c, b:%b, o:%o, x:%h", 0ah, 0h
 alphabet:   db "0123456789abcdef"
