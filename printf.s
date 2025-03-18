@@ -5,29 +5,50 @@ strPtr   equ formatLine
 ;--------------------------------------------------------------------------------
 
 section .text
-global _start
+global meowprint
 
 ;================================================================================
 ; Comm: main func.
 ;================================================================================
-_start:
+meowprint:
+    pop r15
+
+    push r9
+    push r8
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+
+    pop rbx
+
+    push rbp
+    mov rbp, rsp
+
     call fillBuff
     call printBuff
-    call exitProg
+    ;call exitProg
+
+    pop rbp
+
+    add rsp, 40d
+    push r15
+
+    ret
 ;================================================================================
 
 
 
 ;================================================================================
-;Comm:
+;Comm: main func
 ;In: format line RBX
-;Destr: RAX, RCX, RDX
+;Destr: a lot
 ;================================================================================
 fillBuff:
 
     xor rcx, rcx
     xor rdx, rdx
-    mov rbx, formatLine
+    ;mov rbx, formatLine
 
 ;-=-=-=-=-=-=-=-=-=-=
     processCharLoop:
@@ -70,6 +91,7 @@ fillBuff:
     add rax, jumpTable
     inc rcx
 
+    mov r11, Buffer
     jmp [rax]
 
     processArgEnd:
@@ -109,34 +131,34 @@ fillBuff:
 ;----------------------
 
     printBin:
-        mov r11, Buffer
-        mov rsi, 0100h
+        mov rsi, [rbp + 8]
+        add rbp, 8h
         mov rdi, 2h
         call printNum
         jmp processCharLoop
 
     printChar:
-        mov r10, 'j'
-        mov r11, Buffer
+        mov r10, [rbp + 8]
+        add rbp, 8h
         call putChar
         jmp processCharLoop
 
     printDec:
-        mov rsi, -213d
-        mov r11, Buffer
+        mov rsi, [rbp + 8]
+        add rbp, 8h
         call printNumDec
         jmp processCharLoop
 
     printHex:
-        mov r11, Buffer
-        mov rsi, 0edah
+        mov rsi, [rbp + 8]
+        add rbp, 8h
         mov rdi, 10h
         call printNum
         jmp processCharLoop
 
     printOct:
-        mov r11, Buffer
-        mov rsi, 0edah
+        mov rsi, [rbp + 8]
+        add rbp, 8h
         mov rdi, 8h
         call printNum
         jmp processCharLoop
@@ -148,7 +170,8 @@ fillBuff:
 
         call printBuff
 
-        mov rsi, String
+        mov rsi, [rbp + 8]
+        add rbp, 8h
         call printString
         xor rdx, rdx
 
