@@ -1,7 +1,6 @@
 
 ;-------------------CONSTS-------------------------------------------------------
 BuffSize equ 10h           ; max buffer size
-strPtr   equ formatLine
 ;--------------------------------------------------------------------------------
 
 section .text
@@ -11,7 +10,7 @@ global meowprint
 ; Comm: main func.
 ;================================================================================
 meowprint:
-    pop r15
+    pop r15                 ; ret addr
 
     push r9
     push r8
@@ -46,7 +45,7 @@ meowprint:
 ;================================================================================
 fillBuff:
 
-    xor rcx, rcx
+    xor r13, r13
     xor rdx, rdx
     ;mov rbx, formatLine
 
@@ -57,7 +56,7 @@ fillBuff:
     cmp rdx, BuffSize            ; if buffsize >= maxsize
     jge emptyBuff
 
-    mov al, [rbx + rcx]
+    mov al, [rbx + r13]
 
     cmp al, '%'                 ; if char == %
     je processArg
@@ -67,32 +66,28 @@ fillBuff:
 
 
     mov [Buffer + rdx], al      ; load char to buff
-    inc rcx
+    inc r13
     inc rdx
     jmp processCharLoop
 
 ;----------------------
     jmp processArgEnd
     processArg:
-    inc rcx
-    mov al, [rbx + rcx]
+    inc r13
+    mov al, [rbx + r13]
 
     cmp al, '%'
     jg percentEnd
     mov [Buffer + rdx], al
-    inc rcx
+    inc r13
     inc rdx
     jmp processCharLoop
     percentEnd:
 
-
-    sub rax, 62h            ; sub ascii('b')
-    shl rax, 3d
-    add rax, jumpTable
-    inc rcx
+    inc r13
 
     mov r11, Buffer
-    jmp [rax]
+    jmp [8 * (rax - 'b') + jumpTable]
 
     processArgEnd:
 ;----------------------
@@ -103,37 +98,20 @@ fillBuff:
     jmp emptyBuffEnd
     emptyBuff:
 
-    push rcx
+    push r13
     call printBuff
-    pop rcx
+    pop r13
     xor rdx, rdx                ; rdx = 0
     jmp processCharLoop
 
     emptyBuffEnd:
 ;----------------------
 
-
-;----------------------
-    align 8
-    jumpTable:
-        dq printBin    ; 0      'b'
-        dq printChar   ; 1      'c'
-        dq printDec    ; 2      'd'
-        times 3d dq 0h ; 'h' - 'd' - 1
-        dq printHex    ; 6      'h'
-        times 6d dq 0h ; 'o' - 'h' - 1
-        dq printOct    ; 13     'o'
-        times 3d dq 0h ; 's' - 'o' - 1
-        dq printStr    ; 17     's'
-
-
-
-;----------------------
-
     printBin:
         mov rsi, [rbp + 8]
         add rbp, 8h
-        mov rdi, 2h
+        mov cl, 01h
+        mov rdi, 1h
         call printNum
         jmp processCharLoop
 
@@ -152,20 +130,22 @@ fillBuff:
     printHex:
         mov rsi, [rbp + 8]
         add rbp, 8h
-        mov rdi, 10h
+        mov cl, 04h
+        mov rdi, 0fh
         call printNum
         jmp processCharLoop
 
     printOct:
         mov rsi, [rbp + 8]
         add rbp, 8h
-        mov rdi, 8h
+        mov cl, 03h
+        mov rdi, 7h
         call printNum
         jmp processCharLoop
 
     printStr:
         push rax
-        push rcx
+        push r13
         push rdi
 
         call printBuff
@@ -176,7 +156,7 @@ fillBuff:
         xor rdx, rdx
 
         pop rdi
-        pop rcx
+        pop r13
         pop rax
 
         jmp processCharLoop
@@ -210,6 +190,7 @@ printNumDec:
     skipMinus:
 
     xor r12, r12
+    xor rcx, rcx
     mov rbx, rdx
     xor rdx, rdx
     xor rax, rax
@@ -228,8 +209,8 @@ printNumDec:
         mov al, [r10]
         mov r10b, al
 
-        mov [digitBuff + r12], r10b
-        inc r12
+        mov [digitBuff + rcx], r10b
+        inc rcx
 
         cmp rsi, 0h
         jne loopNumDec
@@ -237,12 +218,13 @@ printNumDec:
 
     mov rdx, rbx
     loopGetDigNumDec:
-        mov r10b, [digitBuff + r12 - 1]
+        mov r10b, [digitBuff + rcx - 1]
         call putChar
 
-        dec r12
-        cmp r12, 0h
-        jne loopGetDigNumDec
+        ;dec r12
+        ;cmp r12, 0h
+        ;jne loopGetDigNumDec
+        loop loopGetDigNumDec
 
     pop rbx
     ret
@@ -293,36 +275,12 @@ getStrLen:
 
 ;================================================================================
 ;Comm: prints num to buffer, in different notations.
-;In: R11 + RDX - place in buffer,  RSI - number, RDI - notation (2, 8, 10, 16)
+;In: R11 + RDX - place in buffer,  RSI - number, CL - shift (power of 2), RDI - notaion (mask) - 1 (1, 7, 15)
 ;Destr: RAX, RDX, R8, R12
 ;================================================================================
 printNum:
 
-    cmp rdi, 2h
-    je pBin
-
-    cmp rdi, 8h
-    je pOct
-
-    ;cmp rdi, 0ah
-    ;je pDec
-
-    jmp pHex
-
-    pBin:
-        mov r8, 1h
-        jmp mainPrnt
-
-    pOct:
-        mov r8, 3h
-        jmp mainPrnt
-
-    pHex:
-        mov r8, 4h
-        jmp mainPrnt
-
     mainPrnt:
-        sub rdi, 1h
         xor r12, r12
 
     loopPrnt:
@@ -339,21 +297,17 @@ printNum:
         mov [digitBuff + r12], r10b
         inc r12
 
-        push rcx
-        mov rcx, r8
         shr rsi, cl
-        pop rcx
 
         cmp rsi, 0h
         jne loopPrnt
 
+    mov rcx, r12
     loopGetDigNum:
-        mov r10b, [digitBuff + r12 - 1]
+        mov r10b, [digitBuff + rcx - 1]
         call putChar
 
-        dec r12
-        cmp r12, 0h
-        jne loopGetDigNum
+        loop loopGetDigNum
 
 
     pNumEnd:
@@ -399,6 +353,7 @@ putChar:
     pop rax
 
     xor rdx, rdx
+    call putChar
 
     endClearBuff:
 
@@ -445,9 +400,23 @@ section     .data
 
 Buffer:     times BuffSize db "0"
 digitBuff:  times 64d      db "0"
-additionalBuff:            db "0"
-String:     db "wiwiwi", 0h
-formatLine1: db "s:%s, c:%c, b:%b, o:%o, x:%h, d:%d", 0ah, 0
-formatLine: db "%d", 0ah, 0
+;additionalBuff:            db "0"
+;String:     db "wiwiwi", 0h
+;formatLine1: db "s:%s, c:%c, b:%b, o:%o, x:%h, d:%d", 0ah, 0
+;formatLine: db "%d", 0ah, 0
 alphabet:   db "0123456789abcdef"
 
+section     .rodata
+
+    align 8
+    jumpTable:
+        dq printBin    ; 0      'b'
+        dq printChar   ; 1      'c'
+        dq printDec    ; 2      'd'
+        times 3d dq 0h ; 'h' - 'd' - 1
+        dq printHex    ; 6      'h'
+        times 6d dq 0h ; 'o' - 'h' - 1
+        dq printOct    ; 13     'o'
+        times 3d dq 0h ; 's' - 'o' - 1
+        dq printStr    ; 17     's'
+;----------------------
