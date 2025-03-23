@@ -145,18 +145,15 @@ fillBuff:
 
     printStr:
         push rax
-        push r13
+        push rbx
         push rdi
-
-        call printBuff
 
         mov rsi, [rbp + 8]
         add rbp, 8h
         call printString
-        xor rdx, rdx
 
         pop rdi
-        pop r13
+        pop rbx
         pop rax
 
         jmp processCharLoop
@@ -236,14 +233,36 @@ printNumDec:
 ;================================================================================
 ;Comm: prints '0' terminated string to STDOUT.
 ;In: RSI - ptr to string.
-;Destr: RAX, RDI, RDX
+;Destr: RAX, RDI, RDX, RBX
 ;================================================================================
 printString:
-    call getStrLen
+    xor rbx, rbx
+    call getStrLen ; RCX - len
 
+    cmp rcx, BuffSize
+    jl smallStr
+
+    push rcx
+    push rsi
+    call printBuff
+    pop rsi
+    pop rcx
+
+    mov rdx, rcx
     mov rax, 0x01
     mov rdi, 1
     syscall
+
+    jmp smallStrEnd
+    smallStr:
+
+    mov r10b, [rsi + rbx]
+    inc rbx
+    call putChar
+    cmp rbx, rcx
+    jne smallStr
+
+    smallStrEnd:
 
     ret
 
@@ -258,12 +277,12 @@ printString:
 ;Destr: RDX
 ;================================================================================
 getStrLen:
-    xor rdx, rdx
+    xor rcx, rcx
 
     loopStrLen:
-        cmp byte [rsi + rdx], 0h
+        cmp byte [rsi + rcx], 0h
         je loopStrLenEnd
-        inc rdx
+        inc rcx
         jmp loopStrLen
 
     loopStrLenEnd:
